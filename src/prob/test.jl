@@ -11,7 +11,6 @@ function _solve_opf_cl(file, model_type::Type, optimizer; kwargs...)
     return solve_model(file, model_type, optimizer, _build_opf_cl; kwargs...)
 end
 
-""
 function _build_opf_cl(pm::AbstractPowerModel)
     variable_bus_voltage(pm)
     variable_gen_power(pm)
@@ -36,7 +35,8 @@ function _build_opf_cl(pm::AbstractPowerModel)
 
         constraint_voltage_angle_difference(pm, i)
 
-        constraint_current_limit(pm, i)
+        constraint_current_limit_from(pm, i)
+        constraint_current_limit_to(pm, i)
     end
 
     for i in ids(pm, :dcline)
@@ -50,7 +50,6 @@ function _solve_opf_sw(file, model_constructor, optimizer; kwargs...)
     return solve_model(file, model_constructor, optimizer, _build_opf_sw; kwargs...)
 end
 
-""
 function _build_opf_sw(pm::AbstractPowerModel)
     variable_bus_voltage(pm)
     variable_gen_power(pm)
@@ -96,7 +95,6 @@ function _solve_oswpf(file, model_constructor, optimizer; kwargs...)
     return solve_model(file, model_constructor, optimizer, _build_oswpf; ref_extensions=[ref_add_on_off_va_bounds!], kwargs...)
 end
 
-""
 function _build_oswpf(pm::AbstractPowerModel)
     variable_bus_voltage(pm)
     variable_gen_power(pm)
@@ -145,7 +143,6 @@ function _solve_oswpf_nb(file, model_constructor, optimizer; kwargs...)
     return solve_model(file, model_constructor, optimizer, _build_oswpf_nb; ref_extensions=[ref_add_on_off_va_bounds!], kwargs...)
 end
 
-""
 function _build_oswpf_nb(pm::AbstractPowerModel)
     variable_bus_voltage_on_off(pm)
     variable_gen_power(pm)
@@ -262,12 +259,11 @@ function _build_mld(pm::AbstractPowerModel)
 end
 
 
-"opf with unit commitment, tests constraint_current_limit"
+"opf with unit commitment"
 function _solve_ucopf(file, model_type::Type, solver; kwargs...)
     return solve_model(file, model_type, solver, _build_ucopf; kwargs...)
 end
 
-""
 function _build_ucopf(pm::AbstractPowerModel)
     variable_bus_voltage(pm)
 
@@ -323,12 +319,10 @@ function _build_ucopf(pm::AbstractPowerModel)
 end
 
 
-""
 function _solve_mn_opb(file, model_type::Type, optimizer; kwargs...)
     return solve_model(file, model_type, optimizer, _build_mn_opb; ref_extensions=[ref_add_connected_components!], multinetwork=true, kwargs...)
 end
 
-""
 function _build_mn_opb(pm::AbstractPowerModel)
     for (n, network) in nws(pm)
         variable_gen_power(pm, nw=n)
@@ -342,12 +336,10 @@ function _build_mn_opb(pm::AbstractPowerModel)
 end
 
 
-""
 function _solve_mn_pf(file, model_type::Type, optimizer; kwargs...)
     return solve_model(file, model_type, optimizer, _build_mn_pf; multinetwork=true, kwargs...)
 end
 
-""
 function _build_mn_pf(pm::AbstractPowerModel)
     for (n, network) in nws(pm)
         variable_bus_voltage(pm, nw=n, bounded = false)
@@ -403,7 +395,6 @@ function _solve_opf_strg(file, model_type::Type, optimizer; kwargs...)
     return solve_model(file, model_type, optimizer, _build_opf_strg; kwargs...)
 end
 
-""
 function _build_opf_strg(pm::AbstractPowerModel)
     variable_bus_voltage(pm)
     variable_gen_power(pm)
@@ -451,7 +442,6 @@ function _solve_opf_strg_mi(file, model_type::Type, optimizer; kwargs...)
     return solve_model(file, model_type, optimizer, _build_opf_strg_mi; kwargs...)
 end
 
-""
 function _build_opf_strg_mi(pm::AbstractPowerModel)
     variable_bus_voltage(pm)
     variable_gen_power(pm)
@@ -494,12 +484,52 @@ function _build_opf_strg_mi(pm::AbstractPowerModel)
 end
 
 
-"opf with tap magnitude and angle as optimization variables"
+"opf with transformer angles as optimization variables"
+function _solve_opf_pst(file, model_type::Type, optimizer; kwargs...)
+    return solve_model(file, model_type, optimizer, _build_opf_pst; kwargs...)
+end
+
+function _build_opf_pst(pm::AbstractPowerModel)
+    variable_bus_voltage(pm)
+    variable_gen_power(pm)
+
+    variable_branch_transform_angle(pm)
+    variable_branch_power(pm)
+    variable_dcline_power(pm)
+
+    objective_min_fuel_and_flow_cost(pm)
+
+    constraint_model_voltage(pm)
+
+    for i in ids(pm, :ref_buses)
+        constraint_theta_ref(pm, i)
+    end
+
+    for i in ids(pm, :bus)
+        constraint_power_balance(pm, i)
+    end
+
+    for i in ids(pm, :branch)
+        constraint_ohms_y_pst_from(pm, i)
+        constraint_ohms_y_pst_to(pm, i)
+
+        constraint_voltage_angle_difference(pm, i)
+
+        constraint_thermal_limit_from(pm, i)
+        constraint_thermal_limit_to(pm, i)
+    end
+
+    for i in ids(pm, :dcline)
+        constraint_dcline_power_losses(pm, i)
+    end
+end
+
+
+"opf with transformer tap magnitude and angle as optimization variables"
 function _solve_opf_oltc_pst(file, model_type::Type, optimizer; kwargs...)
     return solve_model(file, model_type, optimizer, _build_opf_oltc_pst; kwargs...)
 end
 
-""
 function _build_opf_oltc_pst(pm::AbstractPowerModel)
     variable_bus_voltage(pm)
     variable_gen_power(pm)

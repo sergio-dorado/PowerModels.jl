@@ -30,7 +30,7 @@ TESTLOG = Memento.getlogger(PowerModels)
     end
 
     @testset "5-bus solution summary from dict" begin
-        result = run_ac_opf("../test/data/matpower/case5.m", nlp_solver)
+        result = solve_ac_opf("../test/data/matpower/case5.m", nlp_solver)
         output = sprint(PowerModels.summary, result["solution"])
 
         line_count = count(c -> c == '\n', output)
@@ -128,7 +128,7 @@ end
 
 
     @testset "3-bus case solution" begin
-        result = run_ac_opf("../test/data/matpower/case3.m", nlp_solver)
+        result = solve_ac_opf("../test/data/matpower/case3.m", nlp_solver)
         result_base = deepcopy(result)
 
         PowerModels.make_mixed_units!(result["solution"])
@@ -137,7 +137,7 @@ end
         @test InfrastructureModels.compare_dict(result, result_base)
     end
     @testset "5-bus case solution" begin
-        result = run_ac_opf("../test/data/matpower/case5_asym.m", nlp_solver)
+        result = solve_ac_opf("../test/data/matpower/case5_asym.m", nlp_solver)
         result_base = deepcopy(result)
 
         PowerModels.make_mixed_units!(result["solution"])
@@ -146,7 +146,7 @@ end
         @test InfrastructureModels.compare_dict(result, result_base)
     end
     @testset "24-bus case solution" begin
-        result = run_ac_opf("../test/data/matpower/case24.m", nlp_solver)
+        result = solve_ac_opf("../test/data/matpower/case24.m", nlp_solver)
         result_base = deepcopy(result)
 
         PowerModels.make_mixed_units!(result["solution"])
@@ -157,7 +157,7 @@ end
 
 
     @testset "5-bus case solution with duals" begin
-        result = run_dc_opf("../test/data/matpower/case5.m", nlp_solver, setting = Dict("output" => Dict("branch_flows" => true, "duals" => true)))
+        result = solve_dc_opf("../test/data/matpower/case5.m", nlp_solver, setting = Dict("output" => Dict("duals" => true)))
         result_base = deepcopy(result)
 
         PowerModels.make_mixed_units!(result["solution"])
@@ -345,7 +345,7 @@ end
     end
 
 
-    @testset "connecected components" begin
+    @testset "connected components" begin
         data = PowerModels.parse_file("../test/data/matpower/case6.m")
         cc = PowerModels.calc_connected_components(data)
 
@@ -364,7 +364,17 @@ end
         @test cc2 == cc
     end
 
-    @testset "connecected components with switches" begin
+    @testset "connected components with no active buses" begin
+        data = PowerModels.parse_file("../test/data/matpower/case6.m")
+        for (i, bus) in data["bus"]
+            bus["bus_type"] = 4
+        end
+        cc = PowerModels.calc_connected_components(data)
+        cc_ordered = sort(collect(cc); by=length)
+        @test length(cc_ordered) == 0
+    end
+
+    @testset "connected components with switches" begin
         data = PowerModels.parse_file("../test/data/matpower/case5_sw_nb.m")
         cc = PowerModels.calc_connected_components(data)
 
@@ -374,7 +384,7 @@ end
         @test length(cc_ordered[1]) == 19
     end
 
-    @testset "connecected components with simplify network" begin
+    @testset "connected components with simplify network" begin
         data = PowerModels.parse_file("../test/data/matpower/case7_tplgy.m")
         PowerModels.simplify_network!(data)
         cc = PowerModels.calc_connected_components(data)
@@ -437,7 +447,7 @@ end
     @testset "output values" begin
         data = PowerModels.parse_file("../test/data/matpower/case7_tplgy.m")
         PowerModels.simplify_network!(data)
-        result = run_opf(data, ACPPowerModel, nlp_solver)
+        result = solve_opf(data, ACPPowerModel, nlp_solver)
 
         @test result["termination_status"] == LOCALLY_SOLVED
         @test isapprox(result["objective"], 1778; atol = 1e0)
@@ -467,7 +477,7 @@ end
 
 
 @testset "bus type corrections" begin
-    @testset "no generator in connecected comp." begin
+    @testset "no generator in connected comp." begin
         data = parse_file("../test/data/matpower/case7_tplgy.m")
 
         data["gen"]["2"]["gen_status"] = 0
@@ -593,11 +603,40 @@ end
      @testset "5-bus test" begin
         data = PowerModels.parse_file("../test/data/matpower/case5.m")
         data["branch"]["4"]["br_status"] = 0
-        data["buspairs"] = PowerModels.calc_buspair_parameters(data["bus"], data["branch"], 1:1, false)
-        result = run_opf(data, ACPPowerModel, nlp_solver)
+        data["buspairs"] = PowerModels.calc_buspair_parameters(data["bus"], data["branch"])
+        result = solve_opf(data, ACPPowerModel, nlp_solver)
 
         @test result["termination_status"] == LOCALLY_SOLVED
         @test isapprox(result["objective"], 16642; atol = 1e0)
+    end
+
+end
+
+
+@testset "test theta delta bounds" begin
+
+    @testset "5-bus test" begin
+        data = PowerModels.parse_file("../test/data/matpower/case5.m")
+        theta_lb, theta_ub = calc_theta_delta_bounds(data)
+
+        @test theta_lb[1] <= -2.0
+        @test theta_ub[1] >=  2.0
+    end
+
+    @testset "14-bus test" begin
+        data = PowerModels.parse_file("../test/data/matpower/case14.m")
+        theta_lb, theta_ub = calc_theta_delta_bounds(data)
+
+        @test theta_lb[1] <= -13.0
+        @test theta_ub[1] >=  13.0
+    end
+
+    @testset "30-bus test" begin
+        data = PowerModels.parse_file("../test/data/matpower/case30.m")
+        theta_lb, theta_ub = calc_theta_delta_bounds(data)
+
+        @test theta_lb[1] <= -15.0
+        @test theta_ub[1] >=  15.0
     end
 
 end
@@ -608,7 +647,7 @@ end
      @testset "5-bus ac polar flow" begin
         data = PowerModels.parse_file("../test/data/matpower/case5.m")
         data["branch"]["4"]["br_status"] = 0
-        result = run_opf(data, ACPPowerModel, nlp_solver)
+        result = solve_opf(data, ACPPowerModel, nlp_solver)
         PowerModels.update_data!(data, result["solution"])
 
         ac_flows = PowerModels.calc_branch_flow_ac(data)
@@ -626,7 +665,7 @@ end
     @testset "5-bus ac rect flow" begin
         data = PowerModels.parse_file("../test/data/matpower/case5.m")
         data["branch"]["4"]["br_status"] = 0
-        result = run_opf(data, ACRPowerModel, nlp_solver, solution_processors=[sol_data_model!])
+        result = solve_opf(data, ACRPowerModel, nlp_solver, solution_processors=[sol_data_model!])
         PowerModels.update_data!(data, result["solution"])
 
         ac_flows = PowerModels.calc_branch_flow_ac(data)
@@ -644,7 +683,7 @@ end
     @testset "5-bus dc flow" begin
         data = PowerModels.parse_file("../test/data/matpower/case5.m")
         data["branch"]["4"]["br_status"] = 0
-        result = run_opf(data, DCPPowerModel, nlp_solver)
+        result = solve_opf(data, DCPPowerModel, nlp_solver)
         PowerModels.update_data!(data, result["solution"])
 
         dc_flows = PowerModels.calc_branch_flow_dc(data)
@@ -666,7 +705,7 @@ end
 
      @testset "5-bus polynomial gen cost" begin
         data = PowerModels.parse_file("../test/data/matpower/case5.m")
-        result = run_opf(data, ACPPowerModel, nlp_solver)
+        result = solve_opf(data, ACPPowerModel, nlp_solver)
         PowerModels.update_data!(data, result["solution"])
 
         gen_cost = PowerModels.calc_gen_cost(data)
@@ -681,7 +720,7 @@ end
             @test isa(gen["ncost"], Int)
         end
 
-        result = run_opf(data, ACPPowerModel, nlp_solver)
+        result = solve_opf(data, ACPPowerModel, nlp_solver)
         PowerModels.update_data!(data, result["solution"])
 
         gen_cost = PowerModels.calc_gen_cost(data)
@@ -691,7 +730,7 @@ end
 
      @testset "5-bus polynomial gen and dcline cost" begin
         data = PowerModels.parse_file("../test/data/matpower/case5_dc.m")
-        result = run_opf(data, ACPPowerModel, nlp_solver)
+        result = solve_opf(data, ACPPowerModel, nlp_solver)
         PowerModels.update_data!(data, result["solution"])
 
         gen_cost = PowerModels.calc_gen_cost(data)
@@ -704,7 +743,7 @@ end
         data["gen"]["1"]["gen_status"] = 0
         data["dcline"]["1"]["br_status"] = 0
 
-        result = run_opf(data, ACPPowerModel, nlp_solver)
+        result = solve_opf(data, ACPPowerModel, nlp_solver)
         PowerModels.update_data!(data, result["solution"])
 
         gen_cost = PowerModels.calc_gen_cost(data)
@@ -720,7 +759,7 @@ end
      @testset "5-bus ac polar balance" begin
         data = PowerModels.parse_file("../test/data/matpower/case5_dc.m")
         data["branch"]["4"]["br_status"] = 0
-        result = run_opf(data, ACPPowerModel, nlp_solver)
+        result = solve_opf(data, ACPPowerModel, nlp_solver)
         PowerModels.update_data!(data, result["solution"])
 
         balance = PowerModels.calc_power_balance(data)
@@ -734,7 +773,7 @@ end
      @testset "5-bus dc balance" begin
         data = PowerModels.parse_file("../test/data/matpower/case5_dc.m")
         data["branch"]["4"]["br_status"] = 0
-        result = run_opf(data, DCPPowerModel, nlp_solver)
+        result = solve_opf(data, DCPPowerModel, nlp_solver)
         PowerModels.update_data!(data, result["solution"])
 
         balance = PowerModels.calc_power_balance(data)
@@ -778,7 +817,7 @@ end
      @testset "5-bus balance from flow ac" begin
         data = PowerModels.parse_file("../test/data/matpower/case5_dc.m")
         data["branch"]["4"]["br_status"] = 0
-        result = run_opf(data, ACPPowerModel, nlp_solver)
+        result = solve_opf(data, ACPPowerModel, nlp_solver)
         PowerModels.update_data!(data, result["solution"])
 
         flows = PowerModels.calc_branch_flow_ac(data)
@@ -795,7 +834,7 @@ end
      @testset "5-bus balance from flow dc" begin
         data = PowerModels.parse_file("../test/data/matpower/case5_dc.m")
         data["branch"]["4"]["br_status"] = 0
-        result = run_opf(data, DCPPowerModel, nlp_solver)
+        result = solve_opf(data, DCPPowerModel, nlp_solver)
         PowerModels.update_data!(data, result["solution"])
 
         flows = PowerModels.calc_branch_flow_dc(data)
@@ -816,11 +855,11 @@ end
 @testset "test renumber bus ids" begin
      @testset "5-bus with dcline" begin
         data = PowerModels.parse_file("../test/data/matpower/case5_dc.m")
-        result_1 = run_opf(data, ACPPowerModel, nlp_solver)
+        result_1 = solve_opf(data, ACPPowerModel, nlp_solver)
 
         update_bus_ids!(data, Dict(1 => 10, 2=>20, 3=>30, 4=>40, 5=>50))
 
-        result_2 = run_opf(data, ACPPowerModel, nlp_solver)
+        result_2 = solve_opf(data, ACPPowerModel, nlp_solver)
 
         @test isapprox(result_1["objective"], result_2["objective"]; atol=1e-6)
     end
@@ -840,13 +879,141 @@ end
 @testset "test resolve switches" begin
      @testset "5-bus with switches" begin
         data = PowerModels.parse_file("../test/data/matpower/case5_sw.m")
-        resolve_swithces!(data)
+        resolve_switches!(data)
 
         @test length(data["switch"]) == 0
         @test length(data["bus"]) == 4
+        @test data["bus"]["1"]["bus_type"] == 2
 
-        result = run_opf(data, ACPPowerModel, nlp_solver)
+        result = solve_opf(data, ACPPowerModel, nlp_solver)
 
         @test isapprox(result["objective"], 16641.20; atol=1e0)
+    end
+    @testset "Test switches case5_sw 2->1" begin
+        # Switch merges 2 -> 1
+        data = PowerModels.parse_file("../test/data/matpower/case5_sw.m")
+        @test sort(collect(keys(data["bus"]))) == ["1", "10", "2", "3", "4"]
+        resolve_switches!(data)
+        @test sort(collect(keys(data["bus"]))) == ["1", "10", "3", "4"]
+        @test data["bus"]["1"]["bus_type"] == 2
+    end
+    @testset "Test switches case5_sw 3->2->1" begin
+        # Change state of 3->2 switch to merge 3 -> 2 -> 1
+        data = PowerModels.parse_file("../test/data/matpower/case5_sw.m")
+        data["switch"]["2"]["state"] = 1
+        resolve_switches!(data)
+        @test sort(collect(keys(data["bus"]))) == ["1", "10", "4"]
+        @test data["bus"]["1"]["bus_type"] == 2
+    end
+    @testset "Test switches case5_sw 4->3 and 2->1" begin
+        # Change status of 3->4 switch to merge
+        data = PowerModels.parse_file("../test/data/matpower/case5_sw.m")
+        data["switch"]["3"]["status"] = 1
+        resolve_switches!(data)
+        @test sort(collect(keys(data["bus"]))) == ["1", "10", "3"]
+        @test data["bus"]["1"]["bus_type"] == 2
+        @test data["bus"]["3"]["bus_type"] == 3
+    end
+    @testset "Test switches case5_sw 4->3->2->1" begin
+        # Enable 4 -> 3 -> 2 -> 1 merge
+        data = PowerModels.parse_file("../test/data/matpower/case5_sw.m")
+        data["switch"]["2"]["state"] = 1
+        data["switch"]["3"]["status"] = 1
+        resolve_switches!(data)
+        @test sort(collect(keys(data["bus"]))) == ["1", "10"]
+        @test data["bus"]["1"]["bus_type"] == 3
+    end
+    @testset "Test switches case5_sw brute force iteration order" begin
+        # The merging logic depends on the iteration order of an internal set.
+        # It's quite hard to test this, so we just brute force a set of possible
+        # keys to hope we hit the right one. One such key in Julia v1.10.9 is
+        # a=2, b=1, c=3, but about 50% of keys fail.
+        #
+        # The "Test switches case5_sw 4->3->2->1" test above works because
+        # (1, 2, 3) is a key that happens to work.
+        level = Memento.getlevel(TESTLOG)
+        Memento.setlevel!(TESTLOG, "error")
+        @testset "$a-$b-$c" for (a, b, c) in [
+            (1, 2, 3),
+            (1, 3, 2),
+            (2, 1, 3),
+            (2, 3, 1),
+            (3, 1, 2),
+            (3, 2, 1),
+        ]
+            data = PowerModels.parse_file("../test/data/matpower/case5_sw.m")
+            data["switch"]["2"]["state"] = 1
+            data["switch"]["3"]["status"] = 1
+            data["switch"] = Dict(
+                "$a" => data["switch"]["1"],
+                "$b" => data["switch"]["2"],
+                "$c" => data["switch"]["3"],
+            )
+            resolve_switches!(data)
+            @test sort(collect(keys(data["bus"]))) == ["1", "10"]
+            @test data["bus"]["1"]["bus_type"] == 3
+        end
+        Memento.setlevel!(TESTLOG, level)
+    end
+    @testset "Test switches case5_sw 2->1 with 2 inactive" begin
+        # Switch merges 2 -> 1
+        data = PowerModels.parse_file("../test/data/matpower/case5_sw.m")
+        data["bus"]["2"]["bus_type"] = 4
+        @test sort(collect(keys(data["bus"]))) == ["1", "10", "2", "3", "4"]
+        resolve_switches!(data)
+        @test data["bus"]["1"]["bus_type"] == 2
+        @test data["bus"]["2"]["bus_type"] == 4
+    end
+    @testset "Test switches case5_sw 4->3->2->1 with 2 inactive" begin
+        data = PowerModels.parse_file("../test/data/matpower/case5_sw.m")
+        # Make bus 2 inactive, turn on 3->2 and 3->4
+        data["bus"]["2"]["bus_type"] = 4
+        data["switch"]["2"]["state"] = 1
+        data["switch"]["3"]["status"] = 1
+        @test sort(collect(keys(data["bus"]))) == ["1", "10", "2", "3", "4"]
+        resolve_switches!(data)
+        @test sort(collect(keys(data["bus"]))) == ["1", "10", "2", "3"]
+        @test data["bus"]["1"]["bus_type"] == 2
+        @test data["bus"]["2"]["bus_type"] == 4
+        @test data["bus"]["3"]["bus_type"] == 3
+    end
+    @testset "Test switches case5_sw with loop" begin
+        data = PowerModels.parse_file("../test/data/matpower/case5_sw.m")
+        data["switch"]["2"]["state"] = 1
+        data["switch"]["3"]["status"] = 1
+        data["switch"]["4"] = Dict(
+            "qsw" => 0.9861,
+            "source_id" => Any["switch", 4],
+            "f_bus" => 1,
+            "thermal_rating" => 10.0,
+            "status" => 1,
+            "t_bus" => 3,
+            "psw" => 3.0,
+            "index" => 1,
+            "state" => 1,
+        )
+        @test sort(collect(keys(data["bus"]))) == ["1", "10", "2", "3", "4"]
+        resolve_switches!(data)
+        @test sort(collect(keys(data["bus"]))) == ["1", "10"]
+    end
+    @testset "Test switches case5_sw with loop and inactive bus" begin
+        data = PowerModels.parse_file("../test/data/matpower/case5_sw.m")
+        data["bus"]["2"]["bus_type"] = 4
+        data["switch"]["2"]["state"] = 1
+        data["switch"]["3"]["status"] = 1
+        data["switch"]["4"] = Dict(
+            "qsw" => 0.9861,
+            "source_id" => Any["switch", 4],
+            "f_bus" => 1,
+            "thermal_rating" => 10.0,
+            "status" => 1,
+            "t_bus" => 3,
+            "psw" => 3.0,
+            "index" => 1,
+            "state" => 1,
+        )
+        @test sort(collect(keys(data["bus"]))) == ["1", "10", "2", "3", "4"]
+        resolve_switches!(data)
+        @test sort(collect(keys(data["bus"]))) == ["1", "10", "2"]
     end
 end

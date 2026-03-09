@@ -1,17 +1,14 @@
 module PowerModels
 
-import LinearAlgebra, SparseArrays
-
-import JSON
-import Memento
-
-import NLsolve
-
-import JuMP
-
-import InfrastructureModels
+import InfrastructureModels as _IM
 import InfrastructureModels: optimize_model!, @im_fields, nw_id_default
-const _IM = InfrastructureModels
+import JSON
+import JuMP
+import LinearAlgebra
+import Memento
+import NLsolve
+import PrecompileTools
+import SparseArrays
 
 # Create our module level logger (this will get precompiled)
 const _LOGGER = Memento.getlogger(@__MODULE__)
@@ -23,13 +20,13 @@ __init__() = Memento.register(_LOGGER)
 "Suppresses information and warning messages output by PowerModels, for fine grained control use the Memento package"
 function silence()
     Memento.info(_LOGGER, "Suppressing information and warning messages for the rest of this session.  Use the Memento package for more fine-grained control of logging.")
-    Memento.setlevel!(Memento.getlogger(InfrastructureModels), "error")
-    Memento.setlevel!(Memento.getlogger(PowerModels), "error")
+    Memento.setlevel!(Memento.getlogger(_IM), "error")
+    Memento.setlevel!(_LOGGER, "error")
 end
 
 "alows the user to set the logging level without the need to add Memento"
 function logger_config!(level)
-    Memento.config!(Memento.getlogger("PowerModels"), level)
+    Memento.setlevel!(_LOGGER, level)
 end
 
 const _pm_global_keys = Set(["time_series", "per_unit"])
@@ -85,116 +82,34 @@ include("prob/test.jl")
 include("util/obbt.jl")
 include("util/flow_limit_cuts.jl")
 
-
-# function deprecation warnings
-# can be removed in a breaking release after 09/01/2022
-function run_model(args...; kwargs...)
-    @warn("the function run_model has been replaced with solve_model", maxlog=1)
-    solve_model(args...; kwargs...)
-end
-
-function run_pf(args...; kwargs...)
-    @warn("the function run_pf has been replaced with solve_pf", maxlog=1)
-    solve_pf(args...; kwargs...)
-end
-function run_ac_pf(args...; kwargs...)
-    @warn("the function run_ac_pf has been replaced with solve_ac_pf", maxlog=1)
-    solve_ac_pf(args...; kwargs...)
-end
-function run_dc_pf(args...; kwargs...)
-    @warn("the function run_dc_pf has been replaced with solve_dc_pf", maxlog=1)
-    solve_dc_pf(args...; kwargs...)
-end
-function run_pf_bf(args...; kwargs...)
-    @warn("the function run_pf_bf has been replaced with solve_pf_bf", maxlog=1)
-    solve_pf_bf(args...; kwargs...)
-end
-function run_pf_iv(args...; kwargs...)
-    @warn("the function run_pf_iv has been replaced with solve_pf_iv", maxlog=1)
-    solve_pf_iv(args...; kwargs...)
-end
-
-
-function run_opf(args...; kwargs...)
-    @warn("the function run_opf has been replaced with solve_opf", maxlog=1)
-    solve_opf(args...; kwargs...)
-end
-function run_ac_opf(args...; kwargs...)
-    @warn("the function run_ac_opf has been replaced with solve_ac_opf", maxlog=1)
-    solve_ac_opf(args...; kwargs...)
-end
-function run_dc_opf(args...; kwargs...)
-    @warn("the function run_dc_opf has been replaced with solve_dc_opf", maxlog=1)
-    solve_dc_opf(args...; kwargs...)
-end
-
-function run_mn_opf(args...; kwargs...)
-    @warn("the function run_mn_opf has been replaced with solve_mn_opf", maxlog=1)
-    solve_mn_opf(args...; kwargs...)
-end
-function run_mn_opf_strg(args...; kwargs...)
-    @warn("the function run_mn_opf_strg has been replaced with solve_mn_opf_strg", maxlog=1)
-    solve_mn_opf_strg(args...; kwargs...)
-end
-function run_opf_ptdf(args...; kwargs...)
-    @warn("the function run_opf_ptdf has been replaced with solve_opf_ptdf", maxlog=1)
-    solve_opf_ptdf(args...; kwargs...)
-end
-
-function run_opf_bf(args...; kwargs...)
-    @warn("the function run_opf_bf has been replaced with solve_opf_bf", maxlog=1)
-    solve_opf_bf(args...; kwargs...)
-end
-function run_mn_opf_bf_strg(args...; kwargs...)
-    @warn("the function run_mn_opf_bf_strg has been replaced with solve_mn_opf_bf_strg", maxlog=1)
-    solve_mn_opf_bf_strg(args...; kwargs...)
-end
-function run_opf_iv(args...; kwargs...)
-    @warn("the function run_opf_iv has been replaced with solve_opf_iv", maxlog=1)
-    solve_opf_iv(args...; kwargs...)
-end
-
-function run_opb(args...; kwargs...)
-    @warn("the function run_opb has been replaced with solve_opb", maxlog=1)
-    solve_opb(args...; kwargs...)
-end
-function run_nfa_opb(args...; kwargs...)
-    @warn("the function run_nfa_opb has been replaced with solve_nfa_opb", maxlog=1)
-    solve_nfa_opb(args...; kwargs...)
-end
-
-function run_ots(args...; kwargs...)
-    @warn("the function run_ots has been replaced with solve_ots", maxlog=1)
-    solve_ots(args...; kwargs...)
-end
-function run_tnep(args...; kwargs...)
-    @warn("the function run_tnep has been replaced with solve_tnep", maxlog=1)
-    solve_tnep(args...; kwargs...)
-end
-
-function run_opf_branch_power_cuts(args...; kwargs...)
-    @warn("the function run_opf_branch_power_cuts has been replaced with solve_opf_branch_power_cuts", maxlog=1)
-    solve_opf_branch_power_cuts(args...; kwargs...)
-end
-function run_opf_branch_power_cuts!(args...; kwargs...)
-    @warn("the function run_opf_branch_power_cuts! has been replaced with solve_opf_branch_power_cuts!", maxlog=1)
-    solve_opf_branch_power_cuts!(args...; kwargs...)
-end
-function run_opf_ptdf_branch_power_cuts(args...; kwargs...)
-    @warn("the function run_opf_ptdf_branch_power_cuts has been replaced with solve_opf_ptdf_branch_power_cuts", maxlog=1)
-    solve_opf_ptdf_branch_power_cuts(args...; kwargs...)
-end
-function run_opf_ptdf_branch_power_cuts!(args...; kwargs...)
-    @warn("the function run_opf_ptdf_branch_power_cuts! has been replaced with solve_opf_ptdf_branch_power_cuts!", maxlog=1)
-    solve_opf_ptdf_branch_power_cuts!(args...; kwargs...)
-end
-function run_obbt_opf!(args...; kwargs...)
-    @warn("the function run_obbt_opf! has been replaced with solve_obbt_opf!", maxlog=1)
-    solve_obbt_opf!(args...; kwargs...)
-end
-
-
 # this must come last to support automated export
 include("core/export.jl")
 
+PrecompileTools.@setup_workload begin
+    logger_config!("error")  # Turn off logging for this precompile block
+    case3 = joinpath(dirname(@__DIR__), "test/data/matpower/case3.m")
+    case9 = joinpath(dirname(@__DIR__), "test/data/matpower/case9.m")
+    PrecompileTools.@compile_workload begin
+        for case in [case3, case9]
+            data = parse_file(case)
+            _ = instantiate_model(data, ACPPowerModel, build_opf)
+            _ = instantiate_model(data, ACPPowerModel, build_pf)
+            _ = instantiate_model(data, DCPPowerModel, build_opf)
+            _ = instantiate_model(data, DCPPowerModel, build_pf)
+        end
+        _ = compute_ac_pf(case9)
+        _ = compute_dc_pf(case9)
+    end
+    logger_config!("info")   # Re-enable default logging
 end
+
+# Deprecations to be removed in the next breaking release
+
+@deprecate resolve_swithces! resolve_switches!
+
+# This import was retained for anyone using PowerModels.InfrastructureModels.
+# The suggested approach is for users to import InfrastructureModels in their
+# own code.
+import InfrastructureModels
+
+end  # module PowerModels

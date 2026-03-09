@@ -68,9 +68,9 @@ History and discussion:
 @techreport{Cain2012,
   author = {Cain, Mary B and {O' Neill}, Richard P and Castillo, Anya},
   title = {{History of optimal power flow and Models}},
-  year = {2012}
   pages = {1--36},
-  url = {https://www.ferc.gov/industries/electric/indus-act/market-planning/opf-papers/acopf-1-history-Model-testing.pdf}
+  url = {https://www.ferc.gov/sites/default/files/2020-04/acopf-1-history-formulation-testing.pdf},
+  year = {2012}
 }
 ```
 """
@@ -86,9 +86,9 @@ AC power flow Model with rectangular bus voltage variables.
 ```
 @techreport{Cain2012,
   author = {Cain, Mary B and {O' Neill}, Richard P and Castillo, Anya},
-  pages = {1--36},
   title = {{History of optimal power flow and Models}},
-  url = {https://www.ferc.gov/industries/electric/indus-act/market-planning/opf-papers/acopf-1-history-Model-testing.pdf}
+  pages = {1--36},
+  url = {https://www.ferc.gov/sites/default/files/2020-04/acopf-1-history-formulation-testing.pdf},
   year = {2012}
 }
 ```
@@ -135,6 +135,7 @@ due to constants power loads/generators and apparent power limits.
     author = {{O' Neill}, Richard P and Castillo, Anya and Cain, Mary B},
     pages = {1--18},
     title = {{The IV formulation and linear approximations of the ac optimal power flow problem}},
+    url = {https://www.ferc.gov/sites/default/files/2020-04/acopf-2-iv-linearization.pdf},
     year = {2012}
 }
 ```
@@ -155,7 +156,7 @@ abstract type AbstractDCPModel <: AbstractActivePowerModel end
 Linearized 'DC' power flow Model with polar voltage variables.
 
 This model is a basic linear active-power-only approximation, which uses branch susceptance values
-`br_b = -br_x / (br_x^2 + br_x^2)` for determining the network phase angles.  Furthermore, transformer
+`br_b = -br_x / (br_r^2 + br_x^2)` for determining the network phase angles.  Furthermore, transformer
 parameters such as tap ratios and phase shifts are not considered as part of this model.
 
 It is important to note that it is also common for active-power-only approximations to use `1/br_x` for

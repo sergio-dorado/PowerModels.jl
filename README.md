@@ -61,11 +61,12 @@ The primary developer is Carleton Coffrin (@ccoffrin) with support from the foll
 - David Fobes (@pseudocubic) LANL, PSS(R)E v33 data support
 - Rory Finnegan (@rofinn) Invenia, Memento Logging
 - Frederik Geth (@frederikgeth) CSIRO, storage modeling advise, Branch Flow and current-voltage formulation
+- Rahmat Heidari (@hei06j) CSIRO, improved PSS(R)E data support
 - Jonas Kersulis (@kersulis) University of Michigan, Sparse SDP formulation
 - Miles Lubin (@mlubin) MIT, Julia/JuMP advise
 - Yeesian Ng (@yeesian) MIT, Documenter.jl setup
 - Kaarthik Sundar (@kaarthiksundar) LANL, OBBT utility
-- Mathieu Tanneau (@mtanneau) Georgia Tech, PTDF matrix computation
+- Mathieu Tanneau (@mtanneau) Georgia Tech, PTDF matrix computation, performance and memory improvements
 - Byron Tasseff (@tasseff) LANL, multi-infrastructure updates
 
 
@@ -88,4 +89,4 @@ Citation of the original works for problem definitions (e.g. OPF) and [power flo
 
 ## License
 
-This code is provided under a BSD license as part of the Multi-Infrastructure Control and Optimization Toolkit (MICOT) project, LA-CC-13-108.
+This code is provided under a BSD license as part of the Multi-Infrastructure Control and Optimization Toolkit (MICOT) project, C15024.

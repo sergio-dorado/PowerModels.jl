@@ -11,7 +11,6 @@
 #
 
 
-""
 function variable_shunt_admittance_factor(pm::AbstractWConvexModels; nw::Int=nw_id_default, relax::Bool=false, report::Bool=true)
     if !relax
         z_shunt = var(pm, nw)[:z_shunt] = JuMP.@variable(pm.model,
@@ -66,25 +65,17 @@ function variable_storage_current(pm::AbstractWConvexModels; nw::Int=nw_id_defau
 end
 
 
-"`t[ref_bus] == 0`"
 function constraint_theta_ref(pm::AbstractPolarModels, n::Int, i::Int)
     JuMP.@constraint(pm.model, var(pm, n, :va)[i] == 0)
 end
 
-"""
-```
-t[f_bus] - t[t_bus] <= angmax
-t[f_bus] - t[t_bus] >= angmin
-```
-"""
 function constraint_voltage_angle_difference(pm::AbstractPolarModels, n::Int, f_idx, angmin, angmax)
     i, f_bus, t_bus = f_idx
 
     va_fr = var(pm, n, :va, f_bus)
     va_to = var(pm, n, :va, t_bus)
 
-    JuMP.@constraint(pm.model, va_fr - va_to <= angmax)
-    JuMP.@constraint(pm.model, va_fr - va_to >= angmin)
+    JuMP.@constraint(pm.model, angmin <= va_fr - va_to <= angmax)
 end
 
 
@@ -101,7 +92,6 @@ function variable_bus_voltage_magnitude_only(pm::AbstractWModels; kwargs...)
     variable_bus_voltage_magnitude_sqr(pm; kwargs...)
 end
 
-""
 function constraint_voltage_magnitude_setpoint(pm::AbstractWModels, n::Int, i, vm)
     w = var(pm, n, :w, i)
 
@@ -113,13 +103,11 @@ function constraint_theta_ref(pm::AbstractWModels, n::Int, ref_bus::Int)
 end
 
 
-""
 function sol_data_model!(pm::AbstractWModels, solution::Dict)
     apply_pm!(_sol_data_model_w!, solution)
 end
 
 
-""
 function _sol_data_model_w!(solution::Dict)
     if haskey(solution, "bus")
         for (i, bus) in solution["bus"]
@@ -132,7 +120,6 @@ function _sol_data_model_w!(solution::Dict)
 end
 
 
-""
 function constraint_power_balance(pm::AbstractWModels, n::Int, i, bus_arcs, bus_arcs_dc, bus_arcs_sw, bus_gens, bus_storage, bus_pd, bus_qd, bus_gs, bus_bs)
     w    = var(pm, n, :w, i)
     p    = get(var(pm, n),    :p, Dict()); _check_var_keys(p, bus_arcs, "active power", "branch")
@@ -175,7 +162,6 @@ function constraint_power_balance(pm::AbstractWModels, n::Int, i, bus_arcs, bus_
 end
 
 
-""
 function constraint_power_balance_ls(pm::AbstractWConvexModels, n::Int, i::Int, bus_arcs, bus_arcs_dc, bus_arcs_sw, bus_gens, bus_storage, bus_pd, bus_qd, bus_gs, bus_bs)
     w    = var(pm, n, :w, i)
     p    = get(var(pm, n),    :p, Dict()); _check_var_keys(p, bus_arcs, "active power", "branch")
@@ -225,7 +211,6 @@ function constraint_power_balance_ls(pm::AbstractWConvexModels, n::Int, i::Int, 
 end
 
 
-""
 function constraint_ne_power_balance(pm::AbstractWModels, n::Int, i::Int, bus_arcs, bus_arcs_dc, bus_arcs_sw, bus_arcs_ne, bus_gens, bus_storage, bus_pd, bus_qd, bus_gs, bus_bs)
     w    = var(pm, n, :w, i)
     p    = get(var(pm, n),    :p, Dict()); _check_var_keys(p, bus_arcs, "active power", "branch")
@@ -272,7 +257,6 @@ function constraint_ne_power_balance(pm::AbstractWModels, n::Int, i::Int, bus_ar
 end
 
 
-""
 function expression_branch_power_ohms_yt_from(pm::AbstractWRModels, n::Int, f_bus, t_bus, f_idx, t_idx, g, b, g_fr, b_fr, tr, ti, tm)
     w_fr = var(pm, n, :w, f_bus)
     wr   = var(pm, n, :wr, (f_bus, t_bus))
@@ -283,7 +267,6 @@ function expression_branch_power_ohms_yt_from(pm::AbstractWRModels, n::Int, f_bu
 end
 
 
-""
 function expression_branch_power_ohms_yt_to(pm::AbstractWRModels, n::Int, f_bus, t_bus, f_idx, t_idx, g, b, g_to, b_to, tr, ti, tm)
     w_to = var(pm, n, :w, t_bus)
     wr   = var(pm, n, :wr, (f_bus, t_bus))
@@ -324,7 +307,6 @@ function constraint_ohms_yt_to(pm::AbstractWRModels, n::Int, f_bus, t_bus, f_idx
 end
 
 
-""
 function constraint_voltage_angle_difference(pm::AbstractWModels, n::Int, f_idx, angmin, angmax)
     i, f_bus, t_bus = f_idx
 
@@ -335,11 +317,11 @@ function constraint_voltage_angle_difference(pm::AbstractWModels, n::Int, f_idx,
 
     JuMP.@constraint(pm.model, wi <= tan(angmax)*wr)
     JuMP.@constraint(pm.model, wi >= tan(angmin)*wr)
+
     cut_complex_product_and_angle_difference(pm.model, w_fr, w_to, wr, wi, angmin, angmax)
 end
 
 
-""
 function constraint_network_power_balance(pm::AbstractWModels, n::Int, i, comp_gen_ids, comp_pd, comp_qd, comp_gs, comp_bs, comp_branch_g, comp_branch_b)
     for (i,(i,j,r,x,tm,g_fr,g_to)) in comp_branch_g
         @assert(r >= 0 && x >= 0) # requirement for the relaxation property
@@ -354,7 +336,6 @@ function constraint_network_power_balance(pm::AbstractWModels, n::Int, i, comp_g
 end
 
 
-""
 function constraint_switch_state_closed(pm::AbstractWModels, n::Int, f_bus, t_bus)
     w_fr = var(pm, n, :w, f_bus)
     w_to = var(pm, n, :w, t_bus)
@@ -362,7 +343,6 @@ function constraint_switch_state_closed(pm::AbstractWModels, n::Int, f_bus, t_bu
     JuMP.@constraint(pm.model, w_fr == w_to)
 end
 
-""
 function constraint_switch_voltage_on_off(pm::AbstractWModels, n::Int, i, f_bus, t_bus, vad_min, vad_max)
     w_fr = var(pm, n, :w, f_bus)
     w_to = var(pm, n, :w, t_bus)
@@ -381,26 +361,28 @@ function constraint_switch_voltage_on_off(pm::AbstractWModels, n::Int, i, f_bus,
 end
 
 
-
-""
-function constraint_current_limit(pm::AbstractWModels, n::Int, f_idx, c_rating_a)
+function constraint_current_limit_from(pm::AbstractWModels, n::Int, f_idx, c_rating_a)
     l,i,j = f_idx
-    t_idx = (l,j,i)
 
     w_fr = var(pm, n, :w, i)
-    w_to = var(pm, n, :w, j)
 
     p_fr = var(pm, n, :p, f_idx)
     q_fr = var(pm, n, :q, f_idx)
     JuMP.@constraint(pm.model, p_fr^2 + q_fr^2 <= w_fr*c_rating_a^2)
+end
+
+function constraint_current_limit_to(pm::AbstractWModels, n::Int, t_idx, c_rating_a)
+    l,j,i = t_idx
+
+    w_to = var(pm, n, :w, j)
 
     p_to = var(pm, n, :p, t_idx)
     q_to = var(pm, n, :q, t_idx)
     JuMP.@constraint(pm.model, p_to^2 + q_to^2 <= w_to*c_rating_a^2)
 end
 
-""
-function constraint_storage_losses(pm::AbstractWConvexModels, n::Int, i, bus, r, x, p_loss, q_loss; conductors=[1])
+
+function constraint_storage_losses(pm::AbstractWConvexModels, n::Int, i, bus, r, x, p_loss, q_loss)
     w = var(pm, n, :w, bus)
     ccms = var(pm, n, :ccms, i)
     ps = var(pm, n, :ps, i)
@@ -409,19 +391,7 @@ function constraint_storage_losses(pm::AbstractWConvexModels, n::Int, i, bus, r,
     sd = var(pm, n, :sd, i)
     qsc = var(pm, n, :qsc, i)
 
-    for c in conductors
-        JuMP.@constraint(pm.model, ps[c]^2 + qs[c]^2 <= w[c]*ccms[c])
-    end
-
-    JuMP.@constraint(pm.model,
-        sum(ps[c] for c in conductors) + (sd - sc)
-        ==
-        p_loss + sum(r[c]*ccms[c] for c in conductors)
-    )
-
-    JuMP.@constraint(pm.model,
-        sum(qs[c] for c in conductors)
-        ==
-        qsc + q_loss + sum(x[c]*ccms[c] for c in conductors)
-    )
+    JuMP.@constraint(pm.model, ps^2 + qs^2 <= w*ccms)
+    JuMP.@constraint(pm.model, ps + (sd - sc) == p_loss + r*ccms)
+    JuMP.@constraint(pm.model, qs == qsc + q_loss + x*ccms)
 end

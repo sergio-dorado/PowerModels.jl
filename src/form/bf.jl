@@ -1,6 +1,5 @@
 # this file contains (balanced) convexified DistFlow formulation, in W space
 
-""
 function variable_buspair_current_magnitude_sqr(pm::AbstractBFModel; nw::Int=nw_id_default, bounded::Bool=true, report::Bool=true)
     branch = ref(pm, nw, :branch)
 
@@ -28,12 +27,13 @@ function variable_buspair_current_magnitude_sqr(pm::AbstractBFModel; nw::Int=nw_
     report && sol_component_value(pm, nw, :branch, :ccm, ids(pm, nw, :branch), ccm)
 end
 
-""
+"""
+    variable_branch_current(pm::AbstractBFModel; kwargs...)
+"""
 function variable_branch_current(pm::AbstractBFModel; kwargs...)
     variable_buspair_current_magnitude_sqr(pm; kwargs...)
 end
 
-""
 function variable_bus_voltage(pm::AbstractBFModel; kwargs...)
     variable_bus_voltage_magnitude_sqr(pm; kwargs...)
 end
@@ -180,35 +180,23 @@ function constraint_voltage_magnitude_difference(pm::AbstractBFAModel, n::Int, i
 end
 
 
-""
 function constraint_model_current(pm::AbstractBFAModel, n::Int)
 
 end
 
-""
 function variable_buspair_current_magnitude_sqr(pm::AbstractBFAModel; nw::Int=nw_id_default, bounded::Bool=true, report::Bool=true)
 
 end
 
 
 "Neglects the active and reactive loss terms associated with the squared current magnitude."
-function constraint_storage_losses(pm::AbstractBFAModel, n::Int, i, bus, r, x, p_loss, q_loss; conductors=[1])
+function constraint_storage_losses(pm::AbstractBFAModel, n::Int, i, bus, r, x, p_loss, q_loss)
     ps = var(pm, n, :ps, i)
     qs = var(pm, n, :qs, i)
     sc = var(pm, n, :sc, i)
     sd = var(pm, n, :sd, i)
     qsc = var(pm, n, :qsc, i)
 
-
-    JuMP.@constraint(pm.model,
-        sum(ps[c] for c in conductors) + (sd - sc)
-        ==
-        p_loss
-    )
-
-    JuMP.@constraint(pm.model,
-        sum(qs[c] for c in conductors)
-        ==
-        qsc + q_loss
-    )
+    JuMP.@constraint(pm.model, ps + (sd - sc) == p_loss)
+    JuMP.@constraint(pm.model, qs == qsc + q_loss)
 end

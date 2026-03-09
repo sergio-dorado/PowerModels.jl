@@ -276,7 +276,6 @@ function _psse2pm_bus!(pm_data::Dict, pti_data::Dict, import_all::Bool)
     end
 end
 
-
 """
     _psse2pm_load!(pm_data, pti_data)
 
@@ -285,17 +284,41 @@ by `["I", "ID"]` in the PSS(R)E Load specification.
 """
 function _psse2pm_load!(pm_data::Dict, pti_data::Dict, import_all::Bool)
     pm_data["load"] = []
+    bus_lookup = Dict{Int, Any}()
     if haskey(pti_data, "LOAD")
         for load in pti_data["LOAD"]
             sub_data = Dict{String,Any}()
-
             sub_data["load_bus"] = pop!(load, "I")
             sub_data["pd"] = pop!(load, "PL")
             sub_data["qd"] = pop!(load, "QL")
-            sub_data["status"] = pop!(load, "STATUS")
-
             sub_data["source_id"] = ["load", sub_data["load_bus"], pop!(load, "ID")]
+            sub_data["status"] = pop!(load, "STATUS")
             sub_data["index"] = length(pm_data["load"]) + 1
+
+            # Only build lookup once if necessary
+            if (load["IP"] != 0.0) || (load["IQ"] != 0.0) || (load["YP"] != 0.0) || (load["YQ"] != 0.0)
+                if isempty(bus_lookup)
+                    bus_lookup = Dict(bus["index"] => bus for bus in pm_data["bus"])
+                end
+
+                bus_vm = bus_lookup[sub_data["load_bus"]]["vm"]
+                if (load["IP"] != 0.0) || (load["IQ"] != 0.0)
+                    # Uses matpower transformation instead of pd = real(V*I) and qd = imag(V*I)
+                    # where I and V are in vector form.
+                    sub_data["pd"] += bus_vm*load["IP"]
+                    sub_data["qd"] += bus_vm*load["IQ"]
+                    Memento.warn(_LOGGER, "Load id = $(sub_data["index"]) detected as I Load  IP = $(load["IP"]) IQ = $(load["IQ"]). Converting to Power Load Pd = $(bus_vm*load["IP"]) Qd = $(bus_vm*load["IQ"]) using Vm = $(bus_vm)")
+                end
+                if (load["YP"] != 0.0) || (load["YQ"] != 0.0)
+                    # Uses matpower transformation instead of pd = real(V*(V*Y)^*) and qd = imag(V*(V*Y)^*)
+                    # where Y and V are in vector form.
+                    sub_data["pd"] += bus_vm^2*load["YP"]
+                    # NOTE: In PSSe reactive power in constant admittance loads is negative for inductive loads and positive for capacitive loads
+                    sub_data["qd"] -= bus_vm^2*load["YQ"]
+                    Memento.warn(_LOGGER, "Load id = $(sub_data["index"]) detected as Z Load YP = $(load["YP"]) YQ = $(load["YQ"]). Converting to Power Load Pd = $(bus_vm^2*load["YP"]) Qd = $(-1*bus_vm^2*load["YQ"]) using Vm = $(bus_vm)")
+                end
+
+            end
 
             if import_all
                 _import_remaining_keys!(sub_data, load)
@@ -411,8 +434,13 @@ function _psse2pm_transformer!(pm_data::Dict, pti_data::Dict, import_all::Bool)
                     else
                         br_r, br_x = transformer["R1-2"], transformer["X1-2"]
                     end
-                    br_r *= (transformer["NOMV1"]^2 / _get_bus_value(transformer["I"], "base_kv", pm_data)^2) * (pm_data["baseMVA"] / transformer["SBASE1-2"])
-                    br_x *= (transformer["NOMV1"]^2 / _get_bus_value(transformer["I"], "base_kv", pm_data)^2) * (pm_data["baseMVA"] / transformer["SBASE1-2"])
+                    if isapprox(transformer["NOMV1"], 0.0)
+                        br_r *= (pm_data["baseMVA"] / transformer["SBASE1-2"])
+                        br_x *= (pm_data["baseMVA"] / transformer["SBASE1-2"])
+                    else
+                        br_r *= (transformer["NOMV1"]^2 / _get_bus_value(transformer["I"], "base_kv", pm_data)^2) * (pm_data["baseMVA"] / transformer["SBASE1-2"])
+                        br_x *= (transformer["NOMV1"]^2 / _get_bus_value(transformer["I"], "base_kv", pm_data)^2) * (pm_data["baseMVA"] / transformer["SBASE1-2"])
+                    end
                 end
 
                 # Zeq scaling for tap2 (see eq (4.21b) in PROGRAM APPLICATION GUIDE 1 in PSSE installation folder)
@@ -425,8 +453,13 @@ function _psse2pm_transformer!(pm_data::Dict, pti_data::Dict, import_all::Bool)
                         br_r *= (transformer["WINDV2"]/_get_bus_value(transformer["J"], "base_kv", pm_data))^2
                         br_x *= (transformer["WINDV2"]/_get_bus_value(transformer["J"], "base_kv", pm_data))^2
                     else  # "for off-nominal turns ratio in pu of nominal winding voltage, NOMV1, NOMV2 and NOMV3."
-                        br_r *= (transformer["WINDV2"]*(transformer["NOMV2"]/_get_bus_value(transformer["J"], "base_kv", pm_data)))^2
-                        br_x *= (transformer["WINDV2"]*(transformer["NOMV2"]/_get_bus_value(transformer["J"], "base_kv", pm_data)))^2
+                        if isapprox(transformer["NOMV2"], 0.0)
+                            br_r *= transformer["WINDV2"]^2
+                            br_x *= transformer["WINDV2"]^2
+                        else
+                            br_r *= (transformer["WINDV2"]*(transformer["NOMV2"]/_get_bus_value(transformer["J"], "base_kv", pm_data)))^2
+                            br_x *= (transformer["WINDV2"]*(transformer["NOMV2"]/_get_bus_value(transformer["J"], "base_kv", pm_data)))^2
+                        end
                     end
                 end
 
@@ -451,7 +484,7 @@ function _psse2pm_transformer!(pm_data::Dict, pti_data::Dict, import_all::Bool)
                 if sub_data["rate_c"] == 0.0
                     delete!(sub_data, "rate_c")
                 end
-
+                
                 if import_all
                     sub_data["windv1"] = transformer["WINDV1"]
                     sub_data["windv2"] = transformer["WINDV2"]
@@ -459,15 +492,23 @@ function _psse2pm_transformer!(pm_data::Dict, pti_data::Dict, import_all::Bool)
                     sub_data["nomv2"] = transformer["NOMV2"]
                 end
 
+                # Assumes CW = 1, namely, for off-nominal turns ratio in pu of windning bus base voltage
                 sub_data["tap"] = pop!(transformer, "WINDV1") / pop!(transformer, "WINDV2")
                 sub_data["shift"] = pop!(transformer, "ANG1")
 
                 # Unit Transformations
-                if transformer["CW"] != 1  # NOT "for off-nominal turns ratio in pu of winding bus base voltage"
+                if transformer["CW"] == 1       # "for off-nominal turns ratio in pu of winding bus base voltage"
+                    # do nothing
+                elseif transformer["CW"] == 2   # "for winding voltage in kv"
                     sub_data["tap"] *= _get_bus_value(transformer["J"], "base_kv", pm_data) / _get_bus_value(transformer["I"], "base_kv", pm_data)
-                    if transformer["CW"] == 3  # "for off-nominal turns ratio in pu of nominal winding voltage, NOMV1, NOMV2 and NOMV3."
-                        sub_data["tap"] *= transformer["NOMV1"] / transformer["NOMV2"]
+                elseif transformer["CW"] == 3   # "for off-nominal turns ratio in pu of nominal winding voltage, NOMV1, NOMV2 and NOMV3."
+                    if !iszero(transformer["NOMV1"]) && !iszero(transformer["NOMV2"])
+                        sub_data["tap"] *= (transformer["NOMV1"] / transformer["NOMV2"]) * (_get_bus_value(transformer["J"], "base_kv", pm_data) / _get_bus_value(transformer["I"], "base_kv", pm_data))
+                    else
+                        # do nothing
                     end
+                else
+                    error(_LOGGER, "psse data parsing error, unsupported value for `CW` on transformer")
                 end
 
                 if import_all
@@ -521,13 +562,29 @@ function _psse2pm_transformer!(pm_data::Dict, pti_data::Dict, import_all::Bool)
 
                 # Unit Transformations
                 if transformer["CZ"] != 1  # NOT "for resistance and reactance in pu on system MVA base and winding voltage base"
-                    br_r12 *= (transformer["NOMV1"] / _get_bus_value(bus_id1, "base_kv", pm_data))^2 * (pm_data["baseMVA"] / transformer["SBASE1-2"])
-                    br_r23 *= (transformer["NOMV2"] / _get_bus_value(bus_id2, "base_kv", pm_data))^2 * (pm_data["baseMVA"] / transformer["SBASE2-3"])
-                    br_r31 *= (transformer["NOMV3"] / _get_bus_value(bus_id3, "base_kv", pm_data))^2 * (pm_data["baseMVA"] / transformer["SBASE3-1"])
+                    if isapprox(transformer["NOMV1"], 0.0)
+                        br_r12 *= (pm_data["baseMVA"] / transformer["SBASE1-2"])
+                        br_x12 *= (pm_data["baseMVA"] / transformer["SBASE1-2"])
+                    else
+                        br_r12 *= (transformer["NOMV1"] / _get_bus_value(bus_id1, "base_kv", pm_data))^2 * (pm_data["baseMVA"] / transformer["SBASE1-2"])
+                        br_x12 *= (transformer["NOMV1"] / _get_bus_value(bus_id1, "base_kv", pm_data))^2 * (pm_data["baseMVA"] / transformer["SBASE1-2"])
+                    end
 
-                    br_x12 *= (transformer["NOMV1"] / _get_bus_value(bus_id1, "base_kv", pm_data))^2 * (pm_data["baseMVA"] / transformer["SBASE1-2"])
-                    br_x23 *= (transformer["NOMV2"] / _get_bus_value(bus_id2, "base_kv", pm_data))^2 * (pm_data["baseMVA"] / transformer["SBASE2-3"])
-                    br_x31 *= (transformer["NOMV3"] / _get_bus_value(bus_id3, "base_kv", pm_data))^2 * (pm_data["baseMVA"] / transformer["SBASE3-1"])
+                    if isapprox(transformer["NOMV2"], 0.0)
+                        br_r23 *= (pm_data["baseMVA"] / transformer["SBASE2-3"])
+                        br_x23 *= (pm_data["baseMVA"] / transformer["SBASE2-3"])
+                    else
+                        br_r23 *= (transformer["NOMV2"] / _get_bus_value(bus_id2, "base_kv", pm_data))^2 * (pm_data["baseMVA"] / transformer["SBASE2-3"])
+                        br_x23 *= (transformer["NOMV2"] / _get_bus_value(bus_id2, "base_kv", pm_data))^2 * (pm_data["baseMVA"] / transformer["SBASE2-3"])
+                    end
+                    
+                    if isapprox(transformer["NOMV3"], 0.0)
+                        br_r31 *= (pm_data["baseMVA"] / transformer["SBASE3-1"])
+                        br_x31 *= (pm_data["baseMVA"] / transformer["SBASE3-1"])
+                    else
+                        br_r31 *= (transformer["NOMV3"] / _get_bus_value(bus_id3, "base_kv", pm_data))^2 * (pm_data["baseMVA"] / transformer["SBASE3-1"])
+                        br_x31 *= (transformer["NOMV3"] / _get_bus_value(bus_id3, "base_kv", pm_data))^2 * (pm_data["baseMVA"] / transformer["SBASE3-1"])
+                    end                    
                 end
 
                 # See "Power System Stability and Control", ISBN: 0-07-035958-X, Eq. 6.72
@@ -577,11 +634,18 @@ function _psse2pm_transformer!(pm_data::Dict, pti_data::Dict, import_all::Bool)
                     sub_data["shift"] = pop!(transformer, "ANG$m")
 
                     # Unit Transformations
-                    if transformer["CW"] != 1  # NOT "for off-nominal turns ratio in pu of winding bus base voltage"
+                    if transformer["CW"] == 1       # "for off-nominal turns ratio in pu of winding bus base voltage"
+                        # do nothing
+                    elseif transformer["CW"] == 2   # "for winding voltage in kv"
                         sub_data["tap"] /= _get_bus_value(bus_id, "base_kv", pm_data)
-                        if transformer["CW"] == 3  # "for off-nominal turns ratio in pu of nominal winding voltage, NOMV1, NOMV2 and NOMV3."
-                            sub_data["tap"] *= transformer["NOMV$m"]
+                    elseif transformer["CW"] == 3   # "for off-nominal turns ratio in pu of nominal winding voltage, NOMV1, NOMV2 and NOMV3."
+                        if !iszero(transformer["NOMV$m"])
+                            sub_data["tap"] *= transformer["NOMV$m"] / _get_bus_value(bus_id, "base_kv", pm_data)
+                        else
+                            # do nothing
                         end
+                    else
+                        error(_LOGGER, "psse data parsing error, unsupported value for `CW` on transformer")
                     end
 
                     if import_all
@@ -609,7 +673,7 @@ function _psse2pm_transformer!(pm_data::Dict, pti_data::Dict, import_all::Bool)
                     sub_data["index"] = length(pm_data["branch"]) + 1
 
                     if import_all
-                        _import_remaining_keys!(sub_data, transformer; 
+                        _import_remaining_keys!(sub_data, transformer;
                             exclude=["I", "J", "K", "CZ", "CW", "R1-2", "R2-3", "R3-1",
                                   "X1-2", "X2-3", "X3-1", "SBASE1-2", "SBASE2-3", "CKT",
                                   "SBASE3-1", "MAG1", "MAG2", "STAT","NOMV1", "NOMV2",

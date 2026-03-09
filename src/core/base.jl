@@ -12,35 +12,18 @@ _IM.@def pm_fields begin
 end
 
 
-""
-ismulticonductor(pm::AbstractPowerModel, nw::Int) = haskey(pm.ref[:it][pm_it_sym][:nw][nw], :conductors)
-ismulticonductor(pm::AbstractPowerModel; nw::Int=nw_id_default) = haskey(pm.ref[:it][pm_it_sym][:nw][nw], :conductors)
-
-""
-conductor_ids(pm::AbstractPowerModel, nw::Int) = pm.ref[:it][pm_it_sym][:nw][nw][:conductor_ids]
-conductor_ids(pm::AbstractPowerModel; nw::Int=nw_id_default) = pm.ref[:it][pm_it_sym][:nw][nw][:conductor_ids]
-
-
-""
 function solve_model(file::String, model_type::Type, optimizer, build_method; kwargs...)
     data = PowerModels.parse_file(file)
     return solve_model(data, model_type, optimizer, build_method; kwargs...)
 end
 
-""
 function solve_model(data::Dict{String,<:Any}, model_type::Type, optimizer, build_method;
         ref_extensions=[], solution_processors=[], relax_integrality=false,
-        multinetwork=false, multiconductor=false, kwargs...)
+        multinetwork=false, kwargs...)
 
     if multinetwork != _IM.ismultinetwork(data)
         model_requirement = multinetwork ? "multi-network" : "single-network"
         data_type = _IM.ismultinetwork(data) ? "multi-network" : "single-network"
-        Memento.error(_LOGGER, "attempted to build a $(model_requirement) model with $(data_type) data")
-    end
-
-    if multiconductor != ismulticonductor(data)
-        model_requirement = multiconductor ? "multi-conductor" : "single-conductor"
-        data_type = ismulticonductor(data) ? "multi-conductor" : "single-conductor"
         Memento.error(_LOGGER, "attempted to build a $(model_requirement) model with $(data_type) data")
     end
 
@@ -56,13 +39,11 @@ function solve_model(data::Dict{String,<:Any}, model_type::Type, optimizer, buil
 end
 
 
-""
 function instantiate_model(file::String, model_type::Type, build_method; kwargs...)
     data = PowerModels.parse_file(file)
     return instantiate_model(data, model_type, build_method; kwargs...)
 end
 
-""
 function instantiate_model(data::Dict{String,<:Any}, model_type::Type, build_method; kwargs...)
     return _IM.instantiate_model(data, model_type, build_method, ref_add_core!, _pm_global_keys, pm_it_sym; kwargs...)
 end
@@ -199,7 +180,7 @@ function ref_add_core!(ref::Dict{Symbol,Any})
 
         ### aggregate info for pairs of connected buses ###
         if !haskey(nw_ref, :buspairs)
-            nw_ref[:buspairs] = calc_buspair_parameters(nw_ref[:bus], nw_ref[:branch], nw_ref[:conductor_ids], haskey(nw_ref, :conductors))
+            nw_ref[:buspairs] = calc_buspair_parameters(nw_ref[:bus], nw_ref[:branch])
         end
     end
 end

@@ -15,7 +15,7 @@
         @test length(data["switch"]) == 0
         @test length(data["storage"]) == 0
 
-        result = run_opf(data, ACPPowerModel, nlp_solver)
+        result = solve_opf(data, ACPPowerModel, nlp_solver)
         @test isapprox(result["objective"], 1036.52; atol=1e0)
     end
 
@@ -31,8 +31,59 @@
         @test length(data["switch"]) == 0
         @test length(data["storage"]) == 0
 
-        result = run_opf(data, ACPPowerModel, nlp_solver)
+        result = solve_opf(data, ACPPowerModel, nlp_solver)
         @test isapprox(result["objective"], 16551.7; atol=1e0)
+    end
+
+    @testset "Re-number components in-place" begin
+        data = PowerModels.parse_file("../test/data/matpower/case7_tplgy.m")
+
+        # Scramble indices before renumbering
+        v = [data["gen"]["$i"] for i in 1:3]
+        data["gen"]["1"]["index"] = 2
+        data["gen"]["2"]["index"] = 3
+        data["gen"]["3"]["index"] = 1
+
+        d = PowerModels._renumber_components!(data["gen"])
+        @test length(data["gen"]) == 3
+        # Check index consistency
+        @test data["gen"]["1"]["index"] == 1
+        @test data["gen"]["2"]["index"] == 2
+        @test data["gen"]["3"]["index"] == 3
+        # Check that modifications were done in-place
+        @test d === data["gen"]
+        @test data["gen"]["1"] === v[3]
+        @test data["gen"]["2"] === v[1]
+        @test data["gen"]["3"] === v[2]
+    end
+
+    @testset "In-place make_basic_network!" begin
+        data = PowerModels.parse_file("../test/data/matpower/case7_tplgy.m")
+        data_ = deepcopy(data)
+        
+        # Test #1: `make_basic_network` is non-destructive
+        data_basic = PowerModels.make_basic_network(data)
+        @test data == data_        # input data not modified
+        @test data_basic !== data  # we created a new dict
+
+        # Test #2: `make_basic_network!` is destructive and works in-place
+        data_basic = PowerModels.make_basic_network!(data)
+        @test data_basic === data  # in-place modification
+
+        # Test #3: double-check the output of `make_basic_network!`
+        #   This may be redundant with the above tests, unless `make_basic_network` does not
+        #   call the in-place version under the hood
+        @test length(data_basic["bus"]) == 4
+        @test length(data_basic["load"]) == 2
+        @test length(data_basic["shunt"]) == 2
+        @test length(data_basic["gen"]) == 1
+        @test length(data_basic["branch"]) == 2
+        @test length(data_basic["dcline"]) == 0
+        @test length(data_basic["switch"]) == 0
+        @test length(data_basic["storage"]) == 0
+
+        result = solve_opf(data_basic, ACPPowerModel, nlp_solver)
+        @test isapprox(result["objective"], 1036.52; atol=1e0)
     end
 
 end
@@ -43,7 +94,7 @@ end
     @testset "basic bus injection" begin
         data = make_basic_network(PowerModels.parse_file("../test/data/matpower/case14.m"))
 
-        result = run_opf(data, DCPPowerModel, nlp_solver)
+        result = solve_opf(data, DCPPowerModel, nlp_solver)
         update_data!(data, result["solution"])
 
         bi = calc_basic_bus_injection(data)
@@ -51,7 +102,7 @@ end
         @test isapprox(real(sum(bi)), 0.0; atol=1e-6)
 
 
-        result = run_opf(data, ACPPowerModel, nlp_solver)
+        result = solve_opf(data, ACPPowerModel, nlp_solver)
         update_data!(data, result["solution"])
 
         bi = calc_basic_bus_injection(data)
@@ -95,7 +146,7 @@ end
         @test isapprox(SM_1, SM_2; atol=1e-6)
 
 
-        result = run_opf(data, DCPPowerModel, nlp_solver)
+        result = solve_opf(data, DCPPowerModel, nlp_solver)
         update_data!(data, result["solution"])
 
         va = angle.(calc_basic_bus_voltage(data))
@@ -155,7 +206,7 @@ end
         @test isapprox(sum(P), 0.9894736; atol=1e-6)
 
 
-        result = run_opf(data, DCPPowerModel, nlp_solver)
+        result = solve_opf(data, DCPPowerModel, nlp_solver)
         update_data!(data, result["solution"])
 
         bi = real(calc_basic_bus_injection(data))

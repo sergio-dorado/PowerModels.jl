@@ -2,7 +2,65 @@ PowerModels.jl Change Log
 =========================
 
 ### Staged
-- nothing
+- Update to JSON@1 (#986)
+
+### v0.21.5
+- Relax tests to allow `INFEASIBLE_POINT` (#976)
+- Silence Memento logger during precompilation (#980)
+
+### v0.21.4
+- Fix InexactError in `compute_ac_pf` (#939)
+- Fix dictionary call syntax error in psse export (#941)
+- Updated the logging message when components are deactivated (#943)
+- Improve performance of `calc_basic_incidence_matrix` (#946)
+- Update various versios in GitHub actionns (#947) (#949) (#950) (#951) (#952)
+- Fix logic mistake in resolve switches and add test (#956)
+- Fix `parse_file` to use `JSON.parsefile` (#958)
+- Fix spelling of `resolve_swithces!` and add deprecation for compatibility (#959) (#964)
+- Clean up package imports (#961)
+- Refactor `test/runtests.jl` (#962) (#965)
+- Remove empty docstrings (#963) (#966)
+- Add PrecompileTools (#967)
+- Add tests for `calc_admittance_matrix_inv` (#970)
+- Fix bus type update logic during bus merging (#972)
+
+### v0.21.3
+- Fix no-buses bug in `calc_connected_components` (#933)
+
+### v0.21.2
+- In place building of basic network data (#915,#916)
+- Performance improvements to `calc_connected_components` (#914)
+- Fix three winding transformer parsing in psse data (#917)
+- Fix quote counting check in psse parser (#920)
+
+### v0.21.1
+- Fix bug in `calc_theta_delta_bounds` (#907)
+
+### v0.21.0
+- Update to new JuMP nonlinear interface (breaking)
+
+### v0.20.1
+- Fix tests for latest ipopt jll
+
+### v0.20.0
+- Add support for models with mixtures of PWL and polynomial cost functions (#829)
+- Revised models to use two-sided constraints (#819) (breaking)
+- Rewrite code for building objective functions (#778) (breaking)
+- Made current limit modeling consistent with thermal limit modeling (#625) (breaking)
+- Drop support for multiple conductors (#872) (breaking)
+- Drop support for `run_*` functions (#878) (breaking)
+- Drop support for JuMP v0.22 and v0.23 (breaking)
+- Drop support for JSON v0.18, v0.19, v0.20 (breaking)
+
+### v0.19.10
+- Add support for ACP and DCP formulation in OPF with PST variables (#543,#875)
+- Fix implementation of `calc_theta_delta_bounds` when conductor parameter is used (#870)
+- Update tests for SCS v2.0
+
+### v0.19.9
+- Fix implementation of polynomial costs above quadratic
+- Add tests for opf objective expression types
+- Update tests for compat with Julia v1.9 (#861)
 
 ### v0.19.8
 - Improved network data model documentation (#848)
@@ -22,6 +80,13 @@ PowerModels.jl Change Log
 ### v0.19.5
 - Add support for JuMP v1.0
 - Update `correct_cost_functions!` to support PWL costs with a constant power value
+
+### v0.20.0
+- Added conversion of impedance and current loads from PSSE raw files into constant power loads (#792)
+- Made case name recovery optional in PTI parsing
+
+### Staged
+- nothing
 
 ### v0.19.4
 - Fix `sol_component_value_edge` implementation and usage (#811)

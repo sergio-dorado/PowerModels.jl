@@ -55,7 +55,6 @@ end
 
 
 
-""
 function constraint_power_balance(pm::AbstractActivePowerModel, n::Int, i::Int, bus_arcs, bus_arcs_dc, bus_arcs_sw, bus_gens, bus_storage, bus_pd, bus_qd, bus_gs, bus_bs)
     p    = get(var(pm, n),    :p, Dict()); _check_var_keys(p, bus_arcs, "active power", "branch")
     pg   = get(var(pm, n),   :pg, Dict()); _check_var_keys(pg, bus_gens, "active power", "generator")
@@ -81,7 +80,6 @@ function constraint_power_balance(pm::AbstractActivePowerModel, n::Int, i::Int, 
     end
 end
 
-""
 function constraint_power_balance_ls(pm::AbstractActivePowerModel, n::Int, i::Int, bus_arcs, bus_arcs_dc, bus_arcs_sw, bus_gens, bus_storage, bus_pd, bus_qd, bus_gs, bus_bs)
     p    = get(var(pm, n),    :p, Dict()); _check_var_keys(p, bus_arcs, "active power", "branch")
     pg   = get(var(pm, n),   :pg, Dict()); _check_var_keys(pg, bus_gens, "active power", "generator")
@@ -109,7 +107,6 @@ function constraint_power_balance_ls(pm::AbstractActivePowerModel, n::Int, i::In
     end
 end
 
-""
 function constraint_ne_power_balance(pm::AbstractDCPModel, n::Int, i, bus_arcs, bus_arcs_dc, bus_arcs_sw, bus_arcs_ne, bus_gens, bus_storage, bus_pd, bus_qd, bus_gs, bus_bs)
     p    = get(var(pm, n),    :p, Dict()); _check_var_keys(p, bus_arcs, "active power", "branch")
     pg   = get(var(pm, n),   :pg, Dict()); _check_var_keys(pg, bus_gens, "active power", "generator")
@@ -137,7 +134,6 @@ function constraint_ne_power_balance(pm::AbstractDCPModel, n::Int, i, bus_arcs, 
 end
 
 
-""
 function expression_bus_power_injection(pm::AbstractActivePowerModel, n::Int, i::Int, bus_gens, bus_storage, bus_pd, bus_qd, bus_gs, bus_bs)
     pg   = get(var(pm, n),   :pg, Dict()); _check_var_keys(pg, bus_gens, "active power", "generator")
     ps   = get(var(pm, n),   :ps, Dict()); _check_var_keys(ps, bus_storage, "active power", "storage")
@@ -184,7 +180,6 @@ function constraint_thermal_limit_from(pm::AbstractActivePowerModel, n::Int, f_i
     end
 end
 
-""
 function constraint_thermal_limit_to(pm::AbstractActivePowerModel, n::Int, t_idx, rate_a)
     p_to = var(pm, n, :p, t_idx)
     if isa(p_to, JuMP.VariableRef) && JuMP.has_lower_bound(p_to)
@@ -202,16 +197,33 @@ function constraint_thermal_limit_to(pm::AbstractActivePowerModel, n::Int, t_idx
     end
 end
 
-""
-function constraint_current_limit(pm::AbstractActivePowerModel, n::Int, f_idx, c_rating_a)
-    p_fr = var(pm, n, :p, f_idx)
 
-    JuMP.lower_bound(p_fr) < -c_rating_a && JuMP.set_lower_bound(p_fr, -c_rating_a)
-    JuMP.upper_bound(p_fr) >  c_rating_a && JuMP.set_upper_bound(p_fr,  c_rating_a)
+function constraint_current_limit_from(pm::AbstractActivePowerModel, n::Int, f_idx, c_rating_a)
+    p_fr = var(pm, n, :p, f_idx)
+    if isa(p_fr, JuMP.VariableRef) && JuMP.has_lower_bound(p_fr)
+        JuMP.lower_bound(p_fr) < -c_rating_a && JuMP.set_lower_bound(p_fr, -c_rating_a)
+        if JuMP.has_upper_bound(p_fr)
+            JuMP.upper_bound(p_fr) > c_rating_a && JuMP.set_upper_bound(p_fr, c_rating_a)
+        end
+    else
+        JuMP.@constraint(pm.model, p_fr <= c_rating_a)
+    end
+end
+
+function constraint_current_limit_to(pm::AbstractActivePowerModel, n::Int, t_idx, c_rating_a)
+    p_to = var(pm, n, :p, t_idx)
+    if isa(p_to, JuMP.VariableRef) && JuMP.has_lower_bound(p_to)
+        JuMP.lower_bound(p_to) < -c_rating_a && JuMP.set_lower_bound(p_to, -c_rating_a)
+        if JuMP.has_upper_bound(p_to)
+            JuMP.upper_bound(p_to) >  c_rating_a && JuMP.set_upper_bound(p_to,  c_rating_a)
+        end
+    else
+        JuMP.@constraint(pm.model, p_to <= c_rating_a)
+    end
 end
 
 
-""
+
 function constraint_thermal_limit_from_on_off(pm::AbstractActivePowerModel, n::Int, i, f_idx, rate_a)
     p_fr = var(pm, n, :p, f_idx)
     z = var(pm, n, :z_branch, i)
@@ -220,7 +232,6 @@ function constraint_thermal_limit_from_on_off(pm::AbstractActivePowerModel, n::I
     JuMP.@constraint(pm.model, p_fr >= -rate_a*z)
 end
 
-""
 function constraint_thermal_limit_to_on_off(pm::AbstractActivePowerModel, n::Int, i, t_idx, rate_a)
     p_to = var(pm, n, :p, t_idx)
     z = var(pm, n, :z_branch, i)
@@ -229,7 +240,6 @@ function constraint_thermal_limit_to_on_off(pm::AbstractActivePowerModel, n::Int
     JuMP.@constraint(pm.model, p_to >= -rate_a*z)
 end
 
-""
 function constraint_ne_thermal_limit_from(pm::AbstractActivePowerModel, n::Int, i, f_idx, rate_a)
     p_fr = var(pm, n, :p_ne, f_idx)
     z = var(pm, n, :branch_ne, i)
@@ -238,7 +248,6 @@ function constraint_ne_thermal_limit_from(pm::AbstractActivePowerModel, n::Int, 
     JuMP.@constraint(pm.model, p_fr >= -rate_a*z)
 end
 
-""
 function constraint_ne_thermal_limit_to(pm::AbstractActivePowerModel, n::Int, i, t_idx, rate_a)
     p_to = var(pm, n, :p_ne, t_idx)
     z = var(pm, n, :branch_ne, i)
@@ -249,7 +258,6 @@ end
 
 
 
-""
 function constraint_switch_thermal_limit(pm::AbstractActivePowerModel, n::Int, f_idx, rating)
     psw = var(pm, n, :psw, f_idx)
 
@@ -259,7 +267,6 @@ end
 
 
 
-""
 function constraint_storage_thermal_limit(pm::AbstractActivePowerModel, n::Int, i, rating)
     ps = var(pm, n, :ps, i)
 
@@ -267,7 +274,6 @@ function constraint_storage_thermal_limit(pm::AbstractActivePowerModel, n::Int, 
     JuMP.upper_bound(ps) >  rating && JuMP.set_upper_bound(ps,  rating)
 end
 
-""
 function constraint_storage_current_limit(pm::AbstractActivePowerModel, n::Int, i, bus, rating)
     ps = var(pm, n, :ps, i)
 
@@ -275,17 +281,12 @@ function constraint_storage_current_limit(pm::AbstractActivePowerModel, n::Int, 
     JuMP.upper_bound(ps) >  rating && JuMP.set_upper_bound(ps,  rating)
 end
 
-""
-function constraint_storage_losses(pm::AbstractActivePowerModel, n::Int, i, bus, r, x, p_loss, q_loss; conductors=[1])
+function constraint_storage_losses(pm::AbstractActivePowerModel, n::Int, i, bus, r, x, p_loss, q_loss)
     ps = var(pm, n, :ps, i)
     sc = var(pm, n, :sc, i)
     sd = var(pm, n, :sd, i)
 
-    JuMP.@constraint(pm.model,
-        sum(ps[c] for c in conductors) + (sd - sc)
-        ==
-        p_loss + sum(r[c]*ps[c]^2 for c in conductors)
-    )
+    JuMP.@constraint(pm.model, ps + (sd - sc) == p_loss + r*ps^2)
 end
 
 function constraint_storage_on_off(pm::AbstractActivePowerModel, n::Int, i, pmin, pmax, qmin, qmax, charge_ub, discharge_ub)

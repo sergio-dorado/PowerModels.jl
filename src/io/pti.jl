@@ -607,8 +607,8 @@ Comments, typically indicated at the end of a line with a `'/'` character,
 are also extracted separately, and `Array{Array{String}, String}` is returned.
 """
 function _get_line_elements(line::AbstractString)
-    if count(i->(i=="'"), line) % 2 == 1
-        throw(Memento.error(_LOGGER, "There are an uneven number of single-quotes in \"{line}\", the line cannot be parsed."))
+    if count(i->(i=='\''), line) % 2 == 1
+        throw(Memento.error(_LOGGER, "There are an uneven number of single-quotes in \"$line\", the line cannot be parsed."))
     end
 
     line_comment = split(line, _comment_split, limit=2)
@@ -1542,7 +1542,7 @@ function _pm2psse_2w_tran(pm_br::Dict{String, Any}, owner::Int, sbase::Real, sou
     if haskey(pm_br, "source_id")
         ckt = source == "pti" ? "\'$(pm_br["source_id"][5])\'" : "\'$(pm_br["source_id"][end])\'"
     else
-        ckt = _default_transformer("CKT")
+        ckt = _default_transformer["CKT"]
     end
     sub_data["CKT"] = ckt
     sub_data["CW"] = _default_transformer["CW"]
